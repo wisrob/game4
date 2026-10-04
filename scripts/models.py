@@ -247,7 +247,7 @@ for x,z,a in [(-.075,1.23,-.8),(.07,1.32,-.7),(.06,1.06,.7)]:
     o=part('Rune branch',(x,-.368,z),(.018,.012,.10),rune);o.rotation_euler[1]=a
 save('wardstone')
 
-reset();rock=material('Slate',(.085,.11,.13))
+reset();rock=material('Slate',(.16,.19,.205))
 bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=1,location=(0,0,.55));o=bpy.context.object;o.name='Split boulder';o.scale=(1,.75,.85);o.data.materials.append(rock);o.rotation_euler=(.12,.22,.31)
 random.seed(12)
 for v in o.data.vertices:
