@@ -1,0 +1,15 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
+import WebSocket from 'ws';
+import { World } from '../server/simulation.js';
+import { startServer } from '../server/index.js';
+import { LAKE, walkable } from '../shared/world.js';
+import { validateConfig } from '../shared/config.js';
+test('server normalizes movement and rejects nonfinite inputs',()=>{const w=new World(),p=w.join();w.input(p.id,{x:100,z:0});w.tick(.05);assert.ok(Math.abs(p.x-.3)<.001);w.input(p.id,{x:Infinity,z:NaN});assert.ok(Number.isFinite(p.input.x));const before=p.x;w.tick(1);assert.equal(p.x,before);});
+test('mobs face their target, including a zero heading',()=>{const w=new World(),p=w.join(),m=w.mobs[0];p.x=m.x+2;p.z=m.z;w.tick(.05);assert.equal(m.angle,Math.PI/2);p.x=m.x;p.z=m.z+2;w.tick(.05);assert.equal(m.angle,0);assert.equal(w.snapshot().mobs[0].angle,0);});
+test('lake, boundary and collision prevent invalid movement',()=>{assert.equal(walkable(LAKE.x,LAKE.z),false);assert.equal(walkable(44,0),false);const w=new World(),p=w.join();p.x=LAKE.x-LAKE.radius-.31;p.z=LAKE.z;w.input(p.id,{x:1,z:0});w.tick(.05);assert.ok(p.x<LAKE.x-LAKE.radius);});
+test('combat is authoritative, cooldown protected and quest rewards once',()=>{const w=new World(),p=w.join();p.x=-8;p.z=-8;const m=w.mobs[0];assert.equal(w.ability(p.id,'nova'),true);assert.equal(m.hp,22);assert.equal(w.ability(p.id,'nova'),false);assert.equal(w.ability(p.id,'attack'),true);assert.equal(m.hp,0);assert.equal(p.kills,1);for(let i=0;i<5;i++){w.time+=1;m.hp=1;p.x=m.x;p.z=m.z;w.ability(p.id,'attack');}assert.equal(p.kills,6);assert.equal(p.xp,270);assert.equal(p.gold,98);});
+test('settings validation rejects broken JSON domains and bad ranges',()=>{const config=JSON.parse(readFileSync('settings.json','utf8'));assert.deepEqual(validateConfig(config),config);config.water.speed=-1;assert.throws(()=>validateConfig(config),/water.speed/);});
+test('two websocket clients share movement, chat and disconnect cleanup',async()=>{const game=startServer(0);await once(game.http,'listening');const url=`ws://127.0.0.1:${game.http.address().port}/ws`;const sockets=[];try{const a=new WebSocket(url),b=new WebSocket(url);sockets.push(a,b);const messagesA=[],messagesB=[];a.on('message',s=>messagesA.push(JSON.parse(s)));b.on('message',s=>messagesB.push(JSON.parse(s)));await Promise.all([once(a,'open'),once(b,'open')]);await new Promise(r=>setTimeout(r,150));assert.equal(game.world.players.size,2);a.send(JSON.stringify({type:'input',x:1,z:0}));a.send(JSON.stringify({type:'chat',text:'Hello vale'}));await new Promise(r=>setTimeout(r,150));assert.ok(messagesB.some(m=>m.type==='chat'&&m.text==='Hello vale'));assert.ok(messagesB.some(m=>m.type==='state'&&m.players.some(p=>p.x>0)));a.close();await once(a,'close');await new Promise(r=>setTimeout(r,20));assert.equal(game.world.players.size,1);}finally{for(const s of sockets)s.terminate();game.close();}});

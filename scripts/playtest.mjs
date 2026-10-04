@@ -1,0 +1,74 @@
+import { chromium } from '@playwright/test';
+import { createServer } from 'vite';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { startServer } from '../server/index.js';
+import assert from 'node:assert/strict';
+import { TREES } from '../shared/world.js';
+// Own servers and restore config in finally: does not disturb a running dev session.
+const original=await readFile('settings.json','utf8');let browser,vite,game;
+const originalPlacements=await readFile('placements.json','utf8');let placementsEdited=false;
+const errors=[],checks=[];let metrics,expectedConflict=false;
+try{
+  game=startServer(0);await new Promise(r=>game.http.once('listening',r));
+  const serverPort=game.http.address().port;
+  vite=await createServer({server:{port:5174,strictPort:true,proxy:{'/ws':{target:`ws://127.0.0.1:${serverPort}`,ws:true}}}});await vite.listen();
+  browser=await chromium.launch({headless:true,args:['--enable-webgl','--ignore-gpu-blocklist']});
+  const context=await browser.newContext({viewport:{width:1440,height:960},deviceScaleFactor:1});
+  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!(expectedConflict&&m.text().includes('409 (Conflict)')))errors.push(m.text());});
+  await page.goto('http://127.0.0.1:5174');await page.waitForFunction(()=>window.__game?.ready,{},{timeout:30000});
+  await page.waitForFunction(()=>window.__game.performanceLog?.lastSample&&window.__game.performanceLog.status.includes('saved'),{},{timeout:15000});
+  const perfSession=await page.evaluate(()=>window.__game.performanceLog.sessionId);
+  const perfLines=(await readFile(`artifacts/performance/${perfSession}.jsonl`,'utf8')).trim().split('\n').map(JSON.parse);
+  assert.equal(perfLines[0].kind,'automated');assert.ok(perfLines.some(l=>l.type==='sample'&&l.frame.frames>0&&l.context.width===1440));checks.push('Browser performance samples reach local JSONL logs');
+  await page.waitForTimeout(1000);await mkdir('artifacts',{recursive:true});await page.screenshot({path:'artifacts/world.png'});checks.push('World and all Blender models loaded');
+  await page.locator('.actionbar').screenshot({path:'artifacts/actionbar.png'});
+  await page.setViewportSize({width:1566,height:884});await page.screenshot({path:'artifacts/reference.png'});await page.setViewportSize({width:1440,height:960});
+  const initial=await page.evaluate(()=>{const g=window.__game;return g.state.players.find(p=>p.id===g.playerId);});
+  await page.keyboard.down('d');await page.waitForFunction(initial=>{const g=window.__game,p=g.state.players.find(p=>p.id===g.playerId);return Math.hypot(p.x-initial.x,p.z-initial.z)>2.2;},initial,{timeout:15000});await page.keyboard.up('d');await page.waitForTimeout(200);
+  const moved=await page.evaluate(()=>{const g=window.__game;return g.state.players.find(p=>p.id===g.playerId);});assert.ok(Math.hypot(moved.x-initial.x,moved.z-initial.z)>2);checks.push('Keyboard movement reaches authoritative server');
+  const facing=await page.evaluate(()=>window.__game.entities.find(e=>e.id===window.__game.playerId));
+  const dx=moved.x-initial.x,dz=moved.z-initial.z;
+  assert.ok((Math.sin(facing.angle)*dx+Math.cos(facing.angle)*dz)/Math.hypot(dx,dz)>.99,'Rendered character faces its movement direction');
+  await page.screenshot({path:'artifacts/equipment.png'});checks.push('Character faces forward while walking');
+  const other=await context.newPage();await other.goto('http://127.0.0.1:5174');await other.waitForFunction(()=>window.__game?.ready);await page.waitForFunction(()=>window.__game.state.players.length===2);
+  await other.waitForFunction(id=>{const g=window.__game,e=g.entities.find(e=>e.id===id),p=g.state.players.find(p=>p.id===id);return e&&p&&Math.abs(e.angle-p.angle)<.001;},moved.id);checks.push('Remote player uses the same forward heading');
+  await page.locator('#chat-input').fill('Hello from the playtest');await page.locator('#chat-input').press('Enter');await other.getByText('Hello from the playtest',{exact:false}).waitFor();checks.push('Second player joins and receives world chat');
+  // Walk to an enemy using actual click-to-travel; no teleport/debug mutations.
+  // World HUD may cover the destination. Start via keyboard, then click the open ground.
+  await page.keyboard.down('w');await page.waitForTimeout(500);await page.keyboard.up('w');
+  const travel=await page.evaluate(()=>window.__game.project(-6,-5));
+  if(travel.x>320&&travel.y>100&&travel.x<1100&&travel.y<730)await page.locator('#game').click({position:travel});
+  await page.waitForTimeout(1300);await page.keyboard.press('q');await page.waitForFunction(()=>window.__game.state.players.find(p=>p.id===window.__game.playerId).cooldowns.nova>0,{},{timeout:15000});await page.keyboard.press('Space');checks.push('Abilities reach server and render effects');
+  await page.waitForFunction(()=>window.__game.state.players.find(p=>p.id===window.__game.playerId).kills>=1,{},{timeout:15000});checks.push('Actual movement and combat defeat a mossling');
+  await other.close();await page.waitForFunction(()=>window.__game.state.players.length===1);
+  await page.locator('#settings').click();await page.locator('#editor').waitFor({state:'visible'});
+  await page.locator('#setting-water-speed').fill('1.45');await page.locator('#setting-water-speed').dispatchEvent('input');
+  await page.waitForFunction(()=>window.__game.config.water.speed===1.45);checks.push('Water slider updates live shader settings');
+  await page.locator('#setting-water-color').fill('#3355aa');await page.locator('#setting-water-color').dispatchEvent('input');
+  await page.locator('#save-config').click();await page.getByText('Saved to settings.json',{exact:true}).waitFor();
+  const saved=JSON.parse(await readFile('settings.json','utf8'));assert.equal(saved.water.speed,1.45);assert.equal(saved.water.color,'#3355aa');checks.push('Editor saves JSON');
+  await page.waitForTimeout(400);await page.screenshot({path:'artifacts/editor.png'});
+  saved.water.speed=1.8;saved.lighting.sunIntensity=3.1;saved.gameplay.moveSpeed=7;
+  await writeFile('settings.json',JSON.stringify(saved,null,2)+'\n');await page.waitForFunction(()=>window.__game.config.water.speed===1.8);await page.waitForTimeout(400);assert.equal(game.world.config.moveSpeed,7);checks.push('External JSON edits reload in client and server');
+  await page.locator('#setting-water-speed').fill('2');await page.locator('#setting-water-speed').dispatchEvent('input');saved.water.speed=1.9;
+  await writeFile('settings.json',JSON.stringify(saved,null,2)+'\n');await page.getByText('File changed · Reload to discard your preview',{exact:true}).waitFor();
+  expectedConflict=true;const conflictResponse=page.waitForResponse(r=>r.url().endsWith('/__settings')&&r.request().method()==='PUT');await page.locator('#save-config').click();assert.equal((await conflictResponse).status(),409);await page.getByText('File changed. Reload settings before saving.',{exact:true}).waitFor();assert.equal(JSON.parse(await readFile('settings.json','utf8')).water.speed,1.9);expectedConflict=false;
+  await page.locator('#reload-config').click();await page.waitForFunction(()=>window.__game.config.water.speed===1.9);checks.push('Concurrent file edits cannot be overwritten by stale editor previews');
+  await writeFile('settings.json','{"water":');await page.getByText('File error:',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>window.__game.config.water.speed),1.9);checks.push('Invalid file preserves last valid settings');
+  await writeFile('settings.json',original);await page.waitForFunction(()=>window.__game.config.water.speed===.7);
+  await page.locator('#close-editor').click();await page.keyboard.press('F3');await page.waitForTimeout(1000);await page.screenshot({path:'artifacts/performance.png'});
+  metrics=await page.evaluate(()=>window.__game.metrics);assert.ok(metrics.drawCalls<200,`Draw calls ${metrics.drawCalls} exceed budget`);assert.ok(metrics.triangles<150000,`Triangles ${metrics.triangles} exceed budget`);
+  await page.keyboard.press('F3');await page.setViewportSize({width:640,height:800});await page.screenshot({path:'artifacts/compact.png'});checks.push('Compact layout renders');
+  // Real file changes, not debug scene mutations: browser and server consume one source.
+  const placements=JSON.parse(originalPlacements),tree=placements.props.find(p=>p.model==='pine');
+  const before={...tree};tree.x=30;tree.z=30;placementsEdited=true;
+  await writeFile('placements.json',JSON.stringify(placements,null,2)+'\n');
+  await page.waitForFunction(id=>window.__game?.ready&&window.__game.placements.find(p=>p.id===id)?.x===30,tree.id,{timeout:30000});
+  await page.waitForTimeout(600);assert.equal(TREES.find(p=>p.id===tree.id).x,30);checks.push('Placement JSON edits reload scene and authoritative tree collisions');
+  await writeFile('placements.json','{"version":');
+  await page.getByText('Invalid placements',{exact:false}).waitFor();assert.equal(await page.evaluate(id=>window.__game.placements.find(p=>p.id===id).x,tree.id),30);assert.equal(TREES.find(p=>p.id===tree.id).x,30);checks.push('Invalid placement file preserves last valid scene and collisions');
+  await writeFile('placements.json',originalPlacements);
+  await page.waitForFunction(p=>window.__game?.ready&&window.__game.placements.find(prop=>prop.id===p.id)?.x===p.x,before,{timeout:30000});
+  assert.deepEqual(errors,[],'Browser errors');
+  console.log(JSON.stringify({checks,metrics,errors},null,2));await writeFile('artifacts/playtest.json',JSON.stringify({checks,metrics,errors},null,2));
+}finally{await writeFile('settings.json',original);if(placementsEdited)await writeFile('placements.json',originalPlacements);await browser?.close();await vite?.close();game?.close();}

@@ -1,0 +1,5 @@
+node_modules/
+dist/
+artifacts/
+*.blend1
+.mise.local.toml

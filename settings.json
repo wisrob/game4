@@ -1,0 +1,46 @@
+{
+  "water": {
+    "color": "#244650",
+    "highlight": "#8caaa8",
+    "speed": 0.7,
+    "waveHeight": 0.025,
+    "scale": 3.2
+  },
+  "grass": {
+    "color": "#484928",
+    "tipColor": "#a29a52",
+    "density": 12000,
+    "height": 0.48,
+    "wind": 0.12,
+    "speed": 1.2
+  },
+  "lighting": {
+    "sunColor": "#feeeb4",
+    "sunIntensity": 1.9,
+    "ambientColor": "#cdcdac",
+    "ambientGroundColor": "#797252",
+    "ambientIntensity": 3.5,
+    "fogColor": "#414333",
+    "fogNear": 21,
+    "fogFar": 100,
+    "exposure": 0.95
+  },
+  "terrain": {
+    "color": "#6a6d3c",
+    "pathColor": "#9d8562"
+  },
+  "camera": {
+    "distance": 25,
+    "angle": 40,
+    "zoom": 1
+  },
+  "gameplay": {
+    "moveSpeed": 6,
+    "enemySpeed": 2.1,
+    "enemyDamage": 8
+  },
+  "performance": {
+    "pixelRatio": 1.5,
+    "shadows": true
+  }
+}

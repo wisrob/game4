@@ -1,0 +1,18 @@
+// Deterministic world data: rendering and server collisions share one source.
+import placementFile from '../placements.json' with { type: 'json' };
+import { validatePlacements } from './placements.js';
+export const WORLD_SIZE = 88;
+export const LAKE = { x: 14, z: -7, radius: 7.5 };
+export const SPAWN = { x: 0, z: 4 };
+export const MOB_SPAWNS = [[-8,-8],[-12,-4],[-4,-14],[8,12],[13,17],[-14,12],[20,8],[-21,-14]];
+export function random(seed = 42) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
+export function onPath(x,z) { return Math.abs(x - Math.sin(z * .12) * 2) < 2.2 || Math.abs(z + 2 - Math.sin(x * .15) * 2) < 1.7; }
+export const PROPS = validatePlacements(placementFile).props;
+export const TREES = PROPS.filter(p=>p.model==='pine');
+export function applyPlacements(document) {
+  const {props}=validatePlacements(document);
+  PROPS.splice(0,PROPS.length,...props);
+  TREES.splice(0,TREES.length,...props.filter(p=>p.model==='pine'));
+}
+export function walkable(x,z) { return Number.isFinite(x) && Number.isFinite(z) && Math.abs(x)<WORLD_SIZE/2-1 && Math.abs(z)<WORLD_SIZE/2-1 && Math.hypot(x-LAKE.x,z-LAKE.z)>LAKE.radius+.3 && !TREES.some(t=>Math.hypot(x-t.x,z-t.z)<.7*t.scale+.35); }
+export function move(entity, dx, dz) { if(walkable(entity.x+dx,entity.z)) entity.x+=dx; if(walkable(entity.x,entity.z+dz)) entity.z+=dz; }

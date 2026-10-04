@@ -1,0 +1,34 @@
+[tools]
+node = "24.11.0"
+
+[tasks.setup]
+description = "Install locked dependencies and browser for playtests"
+run = ["npm ci", "npx playwright install chromium"]
+
+[tasks.assets]
+description = "Regenerate GLB models and source blend files with installed Blender"
+run = "node scripts/assets.mjs"
+
+[tasks.dev]
+description = "Start game and authoritative multiplayer server"
+run = "node scripts/dev.mjs"
+
+[tasks.build]
+description = "Build the browser client"
+run = "npm run build"
+
+[tasks.test]
+description = "Run simulation and multiplayer tests"
+run = "npm test"
+
+[tasks.playtest]
+description = "Launch isolated servers, play in Chromium, save screenshots and metrics"
+run = "node scripts/playtest.mjs"
+
+[tasks.check]
+description = "Build, test, and play the game"
+run = ["npm run build", "npm test", "node scripts/playtest.mjs"]
+
+[tasks.perf]
+description = "Summarize the latest manual browser performance log (pass --all for automated logs)"
+run = "node scripts/perf-report.mjs"
