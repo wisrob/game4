@@ -34,7 +34,10 @@ export function validatePerformanceBatch(body) {
     for (const key of ['frames','durationMs','fps','meanMs','medianMs','p95Ms','p99Ms','maxMs','onePercentLowFps','over16_7','over33_3','over50','workMeanMs','workP95Ms','renderSubmitMeanMs','renderSubmitP95Ms']) frame[key] = number(s.frame?.[key], key);
     if (!frame.frames || !frame.durationMs) throw new Error('Empty sample');
     const context = {};
-    for (const key of ['width','height','devicePixelRatio','pixelRatio','drawCalls','triangles','geometries','textures','players','mobs','grassDensity','cameraDistance','cameraAngle','cameraZoom','exposure']) context[key] = number(s.context?.[key], key);
+    for (const key of ['width','height','devicePixelRatio','pixelRatio','drawCalls','triangles','geometries','textures','players','mobs','grassDensity','cameraAngle','cameraZoom','exposure']) context[key] = number(s.context?.[key], key);
+    for (const key of ['cameraDistance','cameraMinZoom','cameraMaxZoom']) if(s.context?.[key]!=null) context[key] = number(s.context[key], key);
+    for (const key of ['totalDrawCalls','totalTriangles','shadowDrawCalls','shadowTriangles']) if(s.context?.[key]!=null) context[key] = number(s.context[key], key);
+    for (const key of ['streamingRadius','grassPerChunk','loadedChunks']) if(s.context?.[key]!=null) context[key] = number(s.context[key], key);
     if (typeof s.context?.shadows !== 'boolean') throw new Error('Invalid shadows');
     context.shadows = s.context.shadows;
     if (s.context.heapUsedBytes != null) context.heapUsedBytes = number(s.context.heapUsedBytes, 'heapUsedBytes');

@@ -5,6 +5,7 @@ export function createPerformanceRecorder(renderer, gpu, getContext) {
   const sessionId = crypto.randomUUID();
   const metadata = { kind: navigator.webdriver ? 'automated' : 'manual', gpu, browser: navigator.userAgent, startedAt: new Date().toISOString(), hardwareConcurrency: navigator.hardwareConcurrency || 0 };
   let frames = [], pending = [], sequence = 0, previous = null, flushing = false, lastSentAt = 0, lastSample = null, status = 'Connecting local logger';
+  let renderCounters={};
   const endpoint = '/__performance';
   function payload(samples = pending) { return { sessionId, metadata, samples }; }
   function collect(reason) {
@@ -14,6 +15,7 @@ export function createPerformanceRecorder(renderer, gpu, getContext) {
       width: innerWidth, height: innerHeight, devicePixelRatio, pixelRatio: renderer.getPixelRatio(),
       drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles,
       geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
+      ...renderCounters,
       ...config, ...(performance.memory ? { heapUsedBytes: performance.memory.usedJSHeapSize } : {})
     } };
     lastSample = sample; frames = []; pending.push(sample);
@@ -44,7 +46,8 @@ export function createPerformanceRecorder(renderer, gpu, getContext) {
     sessionId,
     get status() { return status; },
     get lastSample() { return lastSample ? structuredClone(lastSample) : null; },
-    frame(now, workMs, renderSubmitMs) {
+    frame(now, workMs, renderSubmitMs, counters={}) {
+      renderCounters=counters;
       if (document.hidden) { previous = null; return; }
       if (previous !== null) frames.push({ intervalMs: Math.max(.001, now - previous), workMs, renderSubmitMs });
       previous = now;

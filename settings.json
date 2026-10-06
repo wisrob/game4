@@ -1,44 +1,75 @@
 {
   "water": {
-    "color": "#244650",
-    "highlight": "#8caaa8",
-    "speed": 0.7,
-    "waveHeight": 0.025,
-    "scale": 3.2
+    "color": "#12616d",
+    "highlight": "#95cfcc",
+    "opacity": 1,
+    "transmission": 0.74,
+    "ior": 1.46,
+    "refraction": 0.9,
+    "absorptionColor": "#ff8800",
+    "absorption": 2.7,
+    "scattering": 0.12,
+    "roughness": 0.19,
+    "reflection": 1.35,
+    "shimmer": 1.15,
+    "foamColor": "#e4f3ea",
+    "foamStrength": 0.35,
+    "foamDistance": 0.3,
+    "speed": 1.2,
+    "waveHeight": 0.18,
+    "scale": 2
   },
   "grass": {
-    "color": "#484928",
-    "tipColor": "#a29a52",
-    "density": 12000,
-    "height": 0.48,
-    "wind": 0.12,
-    "speed": 1.2
+    "color": "#3b432b",
+    "tipColor": "#69734a",
+    "density": 14000,
+    "height": 0.32,
+    "wind": 0.07,
+    "speed": 2
   },
   "lighting": {
-    "sunColor": "#feeeb4",
-    "sunIntensity": 1.9,
-    "ambientColor": "#cdcdac",
-    "ambientGroundColor": "#797252",
-    "ambientIntensity": 3.5,
-    "fogColor": "#414333",
+    "sunColor": "#ffdeb0",
+    "sunIntensity": 4.2,
+    "sunX": -5,
+    "sunHeight": 30,
+    "sunZ": -23,
+    "ambientColor": "#abbcc9",
+    "ambientGroundColor": "#5c6244",
+    "ambientIntensity": 2.8,
+    "fogColor": "#414c46",
     "fogNear": 21,
     "fogFar": 100,
-    "exposure": 0.95
+    "exposure": 1.7
   },
   "terrain": {
-    "color": "#6a6d3c",
-    "pathColor": "#9d8562"
+    "color": "#435833",
+    "pathColor": "#a18463"
   },
   "camera": {
-    "distance": 25,
-    "angle": 40,
-    "zoom": 1
+    "minZoom": 0.6,
+    "maxZoom": 1.8,
+    "angle": 40
+  },
+  "characters": {
+    "playerScale": 1.2
+  },
+  "postProcessing": {
+    "enabled": true,
+    "brightness": 0.9,
+    "contrast": 1.06,
+    "saturation": 0.85
   },
   "gameplay": {
-    "moveSpeed": 6,
+    "moveSpeed": 5,
     "enemySpeed": 2.1,
-    "enemyDamage": 8
+    "enemyDamage": 8,
+    "attackArcDegrees": 180,
+    "skillArcDegrees": 180,
+    "attackRange": 1.5,
+    "skillRange": 1.9,
+    "mobAttackRange": 1.15
   },
+  "streaming": {"radius":1,"grassPerChunk":700},
   "performance": {
     "pixelRatio": 1.5,
     "shadows": true

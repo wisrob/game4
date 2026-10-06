@@ -1,5 +1,5 @@
 """Reproducible low-poly models. Run via mise run assets; Z-up is converted by glTF."""
-import bpy, math, os, random
+import bpy, math, os, random, sys
 from array import array
 from mathutils import Vector
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -10,8 +10,12 @@ os.makedirs(SOURCE, exist_ok=True)
 TEXTURES = os.path.join(ROOT, 'public', 'textures')
 os.makedirs(TEXTURES, exist_ok=True)
 
-def foliage_material(name, fern=False):
+def foliage_material(name, fern=False, texture=False):
     """Paint broad, faceted evergreen tufts; transparent gaps shape the silhouette."""
+    if texture:
+        image=bpy.data.images.load(os.path.join(TEXTURES,name+'.png'),check_existing=False)
+        image.pack()
+        return foliage_image_material(name,image)
     size=512;pixels=array('f', [.10,.17,.08,0])*(size*size);rng=random.Random(19 if fern else 8)
     def stroke(x0,y0,x1,y1,width,color):
         steps=max(1,int(math.hypot(x1-x0,y1-y0)*1.5))
@@ -60,6 +64,9 @@ def foliage_material(name, fern=False):
         needle((256,395),(256,505),27,1.02)
     image=bpy.data.images.new(name,width=size,height=size,alpha=True);image.pixels.foreach_set(pixels)
     image.filepath_raw=os.path.join(TEXTURES,name+'.png');image.file_format='PNG';image.save();image.pack()
+    return foliage_image_material(name,image)
+
+def foliage_image_material(name,image):
     mat=material(name,(1,1,1));mat.use_backface_culling=False
     if hasattr(mat,'surface_render_method'):mat.surface_render_method='DITHERED'
     if hasattr(mat,'alpha_threshold'):mat.alpha_threshold=.4
@@ -67,15 +74,16 @@ def foliage_material(name, fern=False):
     mat.node_tree.links.new(tex.outputs['Color'],shader.inputs['Base Color']);mat.node_tree.links.new(tex.outputs['Alpha'],shader.inputs['Alpha'])
     return mat
 
-def foliage_cards(name,mat,cards):
+def foliage_cards(name,mat,cards,hanging=False):
     verts=[];faces=[];uvs=[]
     for angle,radius,z,width,rise in cards:
         start=len(verts)
         for t in [0,.5,1]:
             for side in [-1,1]:
-                r=.10+radius*t;w=side*width
+                # The single-fan alpha silhouette supplies attachment taper.
+                r=.10+radius*(.40+.60*t if hanging else t);w=side*width
                 verts.append((math.cos(angle)*r-math.sin(angle)*w,math.sin(angle)*r+math.cos(angle)*w,z+rise*(1-t)-.10*t))
-                uvs.append(((side+1)/2,t))
+                uvs.append(((side+1)/2,.13+.65*(1-t) if hanging else t))
         faces.extend([(start+2,start+3,start+1,start),(start+4,start+5,start+3,start+2)])
     mesh=bpy.data.meshes.new(name);mesh.from_pydata(verts,[],faces);mesh.update();mesh.materials.append(mat)
     layer=mesh.uv_layers.new(name='Sprig UV')
@@ -134,6 +142,7 @@ def limb(name, start, end, radius, mat, sides=8):
     obj.rotation_euler=(Vector(end)-Vector(start)).to_track_quat('Z','Y').to_euler()
     return obj
 def save(name):
+    if '--pine-only' in sys.argv and name!='pine':return
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     # Static parts sharing a material are one exported primitive.
@@ -148,6 +157,38 @@ def save(name):
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(SOURCE, name+'.blend'))
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,name+'.glb'), export_format='GLB', export_yup=True)
+
+if '--world-only' in sys.argv:
+    exec(compile(open(os.path.join(ROOT,'scripts','world-models.py')).read(),'world-models.py','exec'))
+    sys.exit(0)
+
+# Tiny botanical accents share one vertex-colored material per model.
+reset();mat=material('Wildflower colors',(1,1,1));verts=[];faces=[];colors=[]
+def flower_face(points, color):
+    start=len(verts);verts.extend(points);colors.extend([color]*len(points));faces.append(tuple(range(start,start+len(points))))
+for index,(x,y,h) in enumerate([(-.15,0,.45),(.14,.08,.62),(0,-.16,.36)]):
+    green=(.16,.29,.065)
+    for angle in [0,math.tau/3,math.tau*2/3]:
+        a=(x+math.cos(angle)*.014,y+math.sin(angle)*.014)
+        b=(x+math.cos(angle+math.tau/3)*.014,y+math.sin(angle+math.tau/3)*.014)
+        flower_face([(a[0],a[1],0),(b[0],b[1],0),(x,y,h)],green)
+    for side in [-1,1]:
+        flower_face([(x,y,h*.35),(x+side*.12,y+.035,h*.5),(x+side*.20,y,h*.48),(x+side*.09,y-.035,h*.39)],green)
+    petal=(.83,.87,.74) if index!=1 else (.16,.37,.77)
+    for j in range(5):
+        a=j*math.tau/5;dx=math.cos(a);dy=math.sin(a)
+        flower_face([(x,y,h),(x+dx*.065-dy*.04,y+dy*.065+dx*.04,h+.02),(x+dx*.12,y+dy*.12,h),(x+dx*.065+dy*.04,y+dy*.065-dx*.04,h+.02)],petal)
+    points=[(x+math.cos(j*math.tau/5)*.027,y+math.sin(j*math.tau/5)*.027,h+.025) for j in range(5)]
+    flower_face(points,(.93,.61,.08))
+sculpted_mesh('White daisies and blue woodland blooms',verts,faces,mat,colors);save('wildflowers')
+
+reset();mat=material('Lily leaf colors',(1,1,1));verts=[(0,0,.02)];colors=[(.29,.43,.075)];faces=[]
+for j in range(17):
+    angle=.24+j*(math.tau-.48)/16
+    verts.append((math.cos(angle)*.38,math.sin(angle)*.34,0));colors.append((.35+.04*(j%2),.48+.035*(j%2),.10))
+for j in range(1,17):faces.append((0,j,j+1))
+sculpted_mesh('Notched lily pad with raised center',verts,faces,mat,colors);save('lilypad')
+if '--details-only' in sys.argv:sys.exit(0)
 
 reset()
 leather=material('Midnight leather',(.045,.075,.10)); cloak=material('Blue wool cloak',(.055,.12,.21)); steel=material('Old silver',(.32,.38,.40)); skin=material('Skin',(.55,.35,.21))
@@ -188,17 +229,21 @@ o=part('Shield inset',(-.58,-.18,.86),(.29,.36,.04),shield,'cylinder',12);o.rota
 o=part('Shield boss',(-.58,-.215,.86),(.10,.05,.10),steel,'sphere')
 save('wanderer')
 
-reset();bark=material('Bark',(.12,.085,.065));leaf=foliage_material('pine-needles')
-part('Trunk',(0,0,2.25),(.14,.14,2.25),bark,'cylinder',7)
-# Open whorls of folded needle sprays expose branches and a feathered outline.
-# Overlapping sprays retain canopy volume while exposing individual needles.
+reset();bark=material('Bark',(.18,.10,.06));leaf=foliage_material('pine-bough-soft',texture=True)
+profile('Tapered exposed pine trunk',[(0,.22,.18),(.22,.19,.16),(1.4,.15,.14),(4.5,.07,.08)],bark,7)
+# Each card is one hanging bough, rather than a complete branching sprig.
+# Broad overlapping fans form quiet canopy layers above an exposed trunk.
 rng=random.Random(7);cards=[]
-for tier in range(6):
-    z=.80+tier*.72;radius=1.65*(1-tier/7.0)
-    for j in range(6):
-        angle=j*math.tau/6+tier*.67;length=radius*rng.uniform(.91,1.09)
-        cards.append((angle,length,z,length*.72,.85))
-foliage_cards('Broad individual needle sprays',leaf,cards)
+for tier in range(8):
+    z=1.30+tier*.60;radius=1.55*(1-tier/8.0)
+    for j in range(4):
+        angle=j*math.tau/4+tier*.34;length=radius*rng.uniform(.97,1.03)
+        cards.append((angle,length,z,length*.95,.55))
+foliage_cards('Overlapping hanging evergreen boughs',leaf,cards,hanging=True)
+# A solid core keeps shallow exterior panels attached to a continuous canopy.
+core=profile('Solid tapered evergreen canopy',[(1.20,.78,.78),(1.85,.85,.85),(2.45,.73,.73),(3.05,.61,.61),(3.65,.49,.49),(4.25,.37,.37),(4.85,.25,.25),(5.45,.13,.13),(6.30,.015,.015)],leaf,8)
+uv=core.data.uv_layers.new(name='Sprig UV')
+for loop in uv.data:loop.uv=(.5,.45)
 save('pine')
 
 reset();fern=material('Woodland leaves',(.16,.25,.15));verts=[];faces=[];colors=[];random.seed(28)
@@ -285,3 +330,4 @@ for x in [-1.5,1.5]:
         part('Pale post cap',(x,y,1.19),(.17,.17,.06),end,'cylinder',8)
 for x in [-1.52,1.52]:part('Dock edge beam',(x,0,.26),(.07,1.4,.14),end)
 save('dock')
+exec(compile(open(os.path.join(ROOT,'scripts','world-models.py')).read(),'world-models.py','exec'))

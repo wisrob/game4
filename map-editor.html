@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Far Marches · Map Studio</title></head><body>
+<aside><a href="/">← Enter game</a><h1>Map Studio</h1><p>Shape the Far Marches</p>
+<label>Tool<select id="tool"><option value="select">Select / edit vertices</option><option value="region">Draw material region</option><option value="path">Draw path</option><option value="prop">Place landmark</option></select></label>
+<label>Ground material<select id="material"></select></label><label>Path width <input id="width" type="number" min="0.25" max="40" step="0.25" value="5"></label>
+<label>Landmark<select id="model"></select></label><label>Scale<input id="scale" type="number" min="0.2" max="3" step="0.1" value="1"></label><label>Rotation (degrees)<input id="rotation" type="number" value="0" step="15"></label>
+<div class="row"><button id="finish">Finish shape</button><button id="cancel">Cancel</button></div>
+<h2>Selection</h2><label>Region / path / prop<select id="selection"></select></label>
+<div class="row"><button id="delete">Delete</button><button id="insert">Insert vertex</button><button id="remove-vertex">Remove vertex</button></div>
+<h2>Request prop placement</h2><p>Choose a region. Scatter follows its material and keeps roads and water clear.</p>
+<label>Props / 10,000 units²<input id="density" type="number" min="0" max="600" value="100"></label><label>Minimum grid spacing<input id="spacing" type="number" min="2" max="30" value="7"></label><label>Seed<input id="seed" type="number" value="42"></label>
+<label>Palette<select id="palette"><option value="auto">Match biome</option><option value="palm">Palm grove</option><option value="dead-tree,cactus,boulder">Dry desert</option><option value="snow-pine,boulder">Snow forest</option><option value="pine,fern,boulder">Forest</option></select></label><button id="scatter">Generate / replace region props</button>
+<h2>Document</h2><div class="row"><button id="undo">Undo</button><button id="redo">Redo</button><button id="save">Save to repo</button></div><div class="row"><button id="reload">Reload file</button><button id="export">Export JSON</button><button id="fit">Fit map</button></div><label>Import JSON<input id="import" type="file" accept=".json"></label>
+<p class="help">Click to draw; Enter finishes, Escape cancels. Select and drag vertices or props. Middle/right drag pans; wheel zooms. Selected coordinates can be edited below. The outlined starter clearing is reserved.</p>
+<div id="vertices"></div><div id="status" role="status">Loading map…</div></aside>
+<main><header><span id="title">The Far Marches</span><span id="position"></span></header><canvas id="atlas" aria-label="World map drawing canvas"></canvas><footer><span id="summary"></span><span>64-unit chunks · X/Z coordinates</span></footer></main><script type="module" src="/src/map-editor.js"></script></body></html>

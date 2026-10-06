@@ -1,5 +1,5 @@
-import { SCHEMA, validateConfig } from '../shared/config.js';
-const label = name=>name.replace(/([A-Z])/g,' $1').replace(/^./,c=>c.toUpperCase());
+import { SCHEMA, WATER_HELP, POST_PROCESSING_HELP, validateConfig } from '../shared/config.js';
+const label = name=>name==='ior'?'IOR':name.replace(/([A-Z])/g,' $1').replace(/^./,c=>c.toUpperCase());
 export async function createEditor(onChange,toast) {
   const dev=import.meta.env.DEV;
   let response=await fetch(dev?'/__settings':'/settings.json',{cache:'no-store'});if(!response.ok)throw new Error('Could not load settings.json');
@@ -9,9 +9,11 @@ export async function createEditor(onChange,toast) {
   document.body.append(pane);const body=pane.querySelector('.editor-body'),status=pane.querySelector('#editor-status');const controls=new Map();
   function setStatus(text,error=false){status.textContent=text;status.classList.toggle('error',error);}
   for(const [domain,fields] of Object.entries(SCHEMA)) {
-    const section=document.createElement('details');section.open=['water','grass'].includes(domain);const summary=document.createElement('summary');summary.textContent=domain;section.append(summary);
+    const section=document.createElement('details');section.open=['water','grass'].includes(domain);const summary=document.createElement('summary');summary.textContent=domain==='postProcessing'?'post-processing':domain;section.append(summary);
     for(const [key,rule] of Object.entries(fields)) {
       const row=document.createElement('label');row.append(document.createTextNode(label(key)));const input=document.createElement('input');input.id=`setting-${domain}-${key}`;input.setAttribute('aria-label',`${label(domain)} ${label(key)}`);const output=document.createElement('output');
+      if(domain==='water'&&WATER_HELP[key]){row.title=WATER_HELP[key];input.setAttribute('aria-description',WATER_HELP[key]);}
+      if(domain==='postProcessing'){row.title=POST_PROCESSING_HELP[key];input.setAttribute('aria-description',POST_PROCESSING_HELP[key]);}
       if(rule[0]==='color')input.type='color';else if(rule[0]==='boolean')input.type='checkbox';else{input.type='range';[input.min,input.max,input.step]=rule;row.append(output);}
       row.append(input);section.append(row);controls.set(`${domain}.${key}`,{input,output});
       input.addEventListener('input',()=>{const next=structuredClone(config);next[domain][key]=input.type==='checkbox'?input.checked:input.type==='color'?input.value:Number(input.value);try{config=validateConfig(next);dirty=true;output.textContent=input.value;onChange(config);setStatus('Unsaved preview · Save to keep changes');}catch(e){setStatus(e.message,true);}});

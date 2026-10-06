@@ -26,9 +26,21 @@ description = "Launch isolated servers, play in Chromium, save screenshots and m
 run = "node scripts/playtest.mjs"
 
 [tasks.check]
-description = "Build, test, and play the game"
+description = "Build, test, and run a short browser smoke check"
+run = ["npm run build", "npm test", "node scripts/playtest.mjs --smoke"]
+
+[tasks.check-full]
+description = "Build, test, and run the complete gameplay and editor playtest"
 run = ["npm run build", "npm test", "node scripts/playtest.mjs"]
 
 [tasks.perf]
 description = "Summarize the latest manual browser performance log (pass --all for automated logs)"
 run = "node scripts/perf-report.mjs"
+
+[tasks.map-generate]
+description = "Author the example open world and export deterministic chunks"
+run = "node scripts/map-tools.mjs --generate"
+
+[tasks.map-build]
+description = "Validate and export world/map.json as streamable chunks"
+run = "node scripts/map-tools.mjs"
